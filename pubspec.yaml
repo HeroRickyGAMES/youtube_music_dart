@@ -1,0 +1,49 @@
+name: youtube_music_player_dart
+description: "YouTube Music player for Linux and Android with automatic ad/intro skip and Google account support."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI
+  cupertino_icons: ^1.0.8
+  provider: ^6.1.5
+  cached_network_image: ^4.0.6
+  url_launcher: ^6.3.3
+
+  # Networking / API
+  http: ^1.6.0
+  crypto: ^3.0.8
+  youtube_explode_dart: ^3.1.0
+
+  # Playback (native backends for Android + Linux)
+  tomato_player:
+    path: tomato_player
+  audio_service: ^0.18.19
+  audio_service_mpris: ^0.2.1
+
+  # Storage / platform
+  shared_preferences: ^2.5.6
+  path_provider: ^2.1.6
+  flutter_inappwebview: ^6.2.0-beta.3
+  sqlite3: ^3.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+dependency_overrides:
+  # The beta Linux implementation requires WPE WebKit. The app never embeds a
+  # WebView on Linux, so a no-op stub keeps the Linux build dependency-free.
+  flutter_inappwebview_linux:
+    path: third_party/flutter_inappwebview_linux

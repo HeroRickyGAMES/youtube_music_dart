@@ -1,0 +1,24 @@
+name: flutter_inappwebview_linux
+description: "Linux stub for flutter_inappwebview. The app only embeds the login WebView on Android; on Linux login uses the external browser/cookie import."
+version: 0.1.0-beta.1
+publish_to: 'none'
+
+environment:
+  sdk: ^3.8.0
+  flutter: ">=3.32.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_inappwebview_platform_interface: ^1.4.0-beta.3
+
+flutter:
+  plugin:
+    implements: flutter_inappwebview
+    platforms:
+      linux:
+        dartPluginClass: FlutterInAppWebViewLinuxStub
+
+false_secrets:
+  - /test_node_server/*.pem
+  - /test_node_server/*.pfx
