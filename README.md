@@ -66,8 +66,8 @@ flutter build apk --release
 ## Pipeline (GitHub Actions)
 
 A pipeline em `.github/workflows/build.yml` compila **Linux**, **Android** e
-**Windows** em paralelo, sempre que há push em `master`, pull request ou
-execução manual (`workflow_dispatch`).
+**Windows** em paralelo apenas quando você cria uma tag `v*` ou dispara
+manualmente (`workflow_dispatch`). Commits comuns não rodam pipeline.
 
 - **Linux**: instala `libmpv-dev`/GTK no runner e gera
   `youtube_music_player_linux_x64.tar.gz`.
