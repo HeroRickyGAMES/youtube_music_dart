@@ -63,6 +63,23 @@ flutter build linux --release
 flutter build apk --release
 ```
 
+## Pipeline (GitHub Actions)
+
+A pipeline em `.github/workflows/build.yml` compila **Linux**, **Android** e
+**Windows** em paralelo, sempre que há push em `master`, pull request ou
+execução manual (`workflow_dispatch`).
+
+- **Linux**: instala `libmpv-dev`/GTK no runner e gera
+  `youtube_music_player_linux_x64.tar.gz`.
+- **Android**: usa JDK 17 e gera `youtube_music_player_android.apk`.
+- **Windows**: baixa automaticamente o pacote `mpv-dev` prebuilt (shinchiro),
+  define `MPV_PREFIX` e gera `youtube_music_player_windows_x64.zip` com a
+  `libmpv-2.dll` incluída. Não precisa instalar nada manualmente.
+
+Os três arquivos são anexados como *artifacts* do run. Ao criar uma tag `v*`
+(ex.: `v1.0.0`), a pipeline também publica uma GitHub Release com os mesmos
+arquivos.
+
 ## Como o áudio é resolvido
 
 `lib/src/player/stream_resolver.dart` chama o endpoint privado

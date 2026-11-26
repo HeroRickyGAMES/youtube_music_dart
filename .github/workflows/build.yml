@@ -1,0 +1,195 @@
+name: Build Linux / Android / Windows
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.50.1'
+  APP_NAME: youtube_music_player
+
+jobs:
+  linux:
+    name: Linux x64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar dependencias (libmpv, GTK, CMake)
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config libgtk-3-dev libmpv-dev mpv
+          echo "libmpv: $(pkg-config --modversion mpv)"
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Instalar pacotes Dart
+        run: flutter pub get
+
+      - name: Build release
+        run: flutter build linux --release
+
+      - name: Empacotar
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          tar -czf "artifacts/${APP_NAME}_linux_x64.tar.gz" \
+            -C build/linux/x64/release/bundle .
+          ls -lh artifacts
+
+      - name: Enviar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
+  android:
+    name: Android (APK)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Aceitar licencas do Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          flutter config --android-sdk "$ANDROID_HOME"
+
+      - name: Instalar pacotes Dart
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Empacotar
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            "artifacts/${APP_NAME}_android.apk"
+          ls -lh artifacts
+
+      - name: Enviar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      # O plugin tomato_player linka contra libmpv no Windows. O pacote prebuilt
+      # mpv-dev ja traz include/, libmpv.dll.a e libmpv-2.dll na raiz: e so
+      # apontar MPV_PREFIX para a pasta extraida. Nada de instalacao manual.
+      - name: Baixar libmpv prebuilt
+        shell: pwsh
+        env:
+          MPV_TAG: '20261111'
+          MPV_ASSET: 'mpv-dev-x86_64-20261111-git-bcde6b93cc.7z'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $mpvPrefix = (Join-Path $env:GITHUB_WORKSPACE 'mpv').Replace('\', '/')
+          $url = "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/${env:MPV_TAG}/${env:MPV_ASSET}"
+          Write-Host "Baixando $url"
+          curl.exe -fL --retry 5 --retry-delay 5 --retry-all-errors -o mpv-dev.7z $url
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao baixar libmpv prebuilt' }
+          7z x mpv-dev.7z "-o$mpvPrefix" -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao extrair mpv-dev.7z' }
+          if (-not (Test-Path "$mpvPrefix/libmpv.dll.a")) { throw 'libmpv.dll.a nao encontrado' }
+          if (-not (Test-Path "$mpvPrefix/libmpv-2.dll")) { throw 'libmpv-2.dll nao encontrado' }
+          "MPV_PREFIX=$mpvPrefix" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "MPV_PREFIX=$mpvPrefix"
+
+      - name: Instalar pacotes Dart
+        run: flutter pub get
+
+      - name: Build release
+        run: flutter build windows --release
+
+      - name: Empacotar (inclui libmpv-2.dll)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $out = 'build/windows/x64/runner/Release'
+          Copy-Item "$env:MPV_PREFIX/libmpv-2.dll" -Destination $out -Force
+          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
+          Compress-Archive -Path "$out/*" -DestinationPath "artifacts/${env:APP_NAME}_windows_x64.zip" -Force
+          Get-ChildItem artifacts | Select-Object Name, Length
+
+      - name: Enviar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publicar GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Listar arquivos
+        run: ls -lh dist
+
+      - name: Publicar release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
