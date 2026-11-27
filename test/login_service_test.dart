@@ -50,6 +50,24 @@ void main() {
     expect(header, isNot(contains('_ga=')));
   });
 
+  test('embedded browser is available on Android and Windows only', () {
+    expect(LoginService.supportsEmbeddedBrowser('android'), isTrue);
+    expect(LoginService.supportsEmbeddedBrowser('windows'), isTrue);
+    expect(LoginService.supportsEmbeddedBrowser('linux'), isFalse);
+    expect(LoginService.supportsEmbeddedBrowser('macos'), isFalse);
+  });
+
+  test('embedded browser uses a desktop UA on Windows', () {
+    final windows = LoginService.embeddedBrowserUserAgent(windows: true);
+    final android = LoginService.embeddedBrowserUserAgent(windows: false);
+
+    expect(windows, contains('Windows NT 10.0'));
+    expect(windows, contains('Edg/'));
+    expect(windows, isNot(contains('Android')));
+    expect(android, contains('Android 14'));
+    expect(android, contains('Mobile Safari'));
+  });
+
   test('firefoxRootPaths covers the XDG config location', () {
     final home = Platform.environment['HOME'];
     if (home == null) return;

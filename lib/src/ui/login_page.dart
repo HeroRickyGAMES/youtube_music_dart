@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:provider/provider.dart';
@@ -24,7 +23,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _busy = false;
   String? _message;
 
-  bool get _showWebView => !kIsWeb && Platform.isAndroid;
+  bool get _showWebView => _loginService.canUseEmbeddedBrowser;
 
   @override
   void dispose() {
@@ -306,29 +305,74 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           if (_showWebView)
+            Container(
+              width: double.infinity,
+              color: AppColors.surfaceHigh,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: const Text(
+                'Entre na conta Google. Para usar uma conta de marca, troque o '
+                'canal pelo avatar dentro do YouTube Music antes de tocar em '
+                '"Concluir".',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+            ),
+          if (_showWebView)
             Expanded(
-              child: InAppWebView(
-                initialUrlRequest: URLRequest(
-                  url: WebUri(
-                    'https://accounts.google.com/ServiceLogin'
-                    '?service=youtube&continue=https%3A%2F%2Fmusic.youtube.com%2F',
+              child: Stack(
+                children: [
+                  InAppWebView(
+                    initialUrlRequest: URLRequest(
+                      url: WebUri(
+                        'https://accounts.google.com/ServiceLogin'
+                        '?service=youtube&continue=https%3A%2F%2Fmusic.youtube.com%2F',
+                      ),
+                    ),
+                    initialSettings: InAppWebViewSettings(
+                      javaScriptEnabled: true,
+                      thirdPartyCookiesEnabled: true,
+                      useHybridComposition: true,
+                      mediaPlaybackRequiresUserGesture: false,
+                      isInspectable: true,
+                      userAgent: LoginService.embeddedBrowserUserAgent(),
+                    ),
+                    onWebViewCreated: (controller) => _webView = controller,
                   ),
-                ),
-                initialSettings: InAppWebViewSettings(
-                  javaScriptEnabled: true,
-                  thirdPartyCookiesEnabled: true,
-                  useHybridComposition: true,
-                  mediaPlaybackRequiresUserGesture: false,
-                  isInspectable: true,
-                  userAgent:
-                      'Mozilla/5.0 (Linux; Android 14; Pixel 8) '
-                      'AppleWebKit/537.36 (KHTML, like Gecko) '
-                      'Chrome/126.0.0.0 Mobile Safari/537.36',
-                ),
-                onWebViewCreated: (controller) => _webView = controller,
+                  if (_busy)
+                    const Center(
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.accent),
+                    ),
+                ],
+              ),
+            ),
+          // No Windows o WebView2 pode faltar ou o Google pode bloquear o
+          // login embutido: mantemos as mesmas alternativas do Linux à mão.
+          if (_showWebView && Platform.isWindows)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _busy
+                          ? null
+                          : () => _loginService.openLoginInBrowser(),
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                      label: const Text('Navegador'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _busy ? null : _openPasteDialog,
+                      icon: const Icon(Icons.content_paste, size: 16),
+                      label: const Text('Colar cookies'),
+                    ),
+                  ),
+                ],
               ),
             )
-          else
+          else if (!_showWebView)
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(20),

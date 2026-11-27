@@ -304,14 +304,45 @@ class LoginService {
   /// Opens music.youtube.com in the default browser.
   Future<bool> openLoginInBrowser() async {
     if (kIsWeb) return false;
+    const url = 'https://music.youtube.com/';
     try {
-      final result = await Process.run(
-        Platform.isLinux ? 'xdg-open' : 'open',
-        ['https://music.youtube.com/'],
-      );
+      late final ProcessResult result;
+      if (Platform.isWindows) {
+        result = await Process.run('cmd', ['/c', 'start', '', url]);
+      } else {
+        result = await Process.run(
+          Platform.isLinux ? 'xdg-open' : 'open',
+          [url],
+        );
+      }
       return result.exitCode == 0;
     } catch (_) {
       return false;
     }
   }
+
+  /// User-Agent for the embedded login browser.
+  ///
+  /// Google is picky about WebViews, so we impersonate a normal browser:
+  /// Chrome/Edge on Windows and Chrome Mobile on Android. The desktop UA also
+  /// keeps the YouTube Music channel switcher identical to the site.
+  static String embeddedBrowserUserAgent({bool? windows}) {
+    final isWindows = windows ?? (!kIsWeb && Platform.isWindows);
+    if (isWindows) {
+      return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0';
+    }
+    return 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 '
+        '(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
+  }
+
+  /// Platforms where the embedded Google login browser is available.
+  ///
+  /// Windows uses the WebView2 runtime shipped with Edge; Android uses the
+  /// system WebView. On Linux/macOS the app falls back to cookie import.
+  static bool supportsEmbeddedBrowser(String operatingSystem) =>
+      operatingSystem == 'android' || operatingSystem == 'windows';
+
+  bool get canUseEmbeddedBrowser =>
+      !kIsWeb && supportsEmbeddedBrowser(Platform.operatingSystem);
 }

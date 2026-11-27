@@ -1,9 +1,9 @@
 # YouTube Music Player (Flutter, nativo)
 
 Cliente de YouTube Music em Flutter com reprodução nativa, sem WebView tocando
-áudio. Roda em **Linux** (libmpv) e **Android** (Media3/ExoPlayer), usando
-`tomato_player` como motor e `audio_service` para segundo plano e teclas de
-mídia.
+áudio. Roda em **Linux/Windows** (libmpv) e **Android** (Media3/ExoPlayer),
+usando `tomato_player` como motor e `audio_service` para segundo plano e teclas
+de mídia.
 
 ## Recursos
 
@@ -17,7 +17,9 @@ mídia.
   - Anúncios não existem no fluxo: o app pede o áudio direto, não o player web.
   - Intro/sponsor via SponsorBlock, com categorias configuráveis.
   - Opção de pular N segundos fixos de intro.
-- Login Google (cookies), com conta, curtidas e biblioteca.
+- Login Google com **navegador interno** (WebView) no Android e no Windows,
+  igual ao site: entre na conta e troque o canal pelo avatar antes de concluir.
+  No Linux, importação de cookies (Firefox ou DevTools).
 - Qualidade de áudio configurável (baixa, normal, alta).
 - Seleção de saída de áudio no Linux (quando o backend expõe dispositivos).
 
@@ -31,9 +33,13 @@ lib/
   src/player/       resolução de stream, SponsorBlock, audio_service
   src/state/        preferências
   src/ui/           telas e widgets
-tomato_player/      plugin do motor (libmpv no Linux, Media3 no Android)
+tomato_player/      plugin do motor (libmpv no Linux/Windows, Media3 no Android)
 third_party/        stub Linux do flutter_inappwebview
 ```
+
+No Windows o plugin real `flutter_inappwebview_windows` (WebView2/Edge) já é
+registrado pelo Flutter, então o mesmo navegador interno do Android funciona
+sem dependência extra.
 
 ## Requisitos
 
@@ -47,6 +53,12 @@ third_party/        stub Linux do flutter_inappwebview
   - JDK compatível com o AGP.
   - O plugin `flutter_inappwebview` precisa da versão `6.2.0-beta.3`: a
     `6.1.5` quebra no AGP 9.
+- Windows:
+  - Visual Studio com C++ (o mesmo exigido pelo Flutter).
+  - **WebView2 Runtime** para o navegador interno de login. Já vem no Windows
+    11 e no Edge atualizado; em Windows 10 sem o runtime, instale o
+    [WebView2 Evergreen Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
+    Sem ele, use "Colar cookies" na tela de Conta.
 
 ## Como rodar
 
@@ -61,6 +73,7 @@ Builds:
 ```bash
 flutter build linux --release
 flutter build apk --release
+flutter build windows --release
 ```
 
 ## Pipeline (GitHub Actions)
@@ -104,10 +117,17 @@ MPRIS fica em `org.mpris.MediaPlayer2.app.ytmusic.player.audio.instance<pid>`.
 
 ## Login
 
-Android:
+Android e Windows (navegador interno — igual ao app Android):
 
-1. Abra **Conta** e use o WebView de login do Google.
-2. Os cookies são capturados e guardados na sessão do app.
+1. Abra **Conta**. O login do Google abre dentro do app.
+2. Entre na conta. Se quiser uma **conta de marca**, troque o canal pelo avatar
+   dentro do YouTube Music (no Windows o navegador usa UA de Edge desktop, então
+   a interface é igual à do site).
+3. Toque em **Concluir**. Os cookies de `music.youtube.com` e `www.youtube.com`
+   são capturados, a conta é validada e a sessão fica salva no app.
+4. O app detecta automaticamente o canal ativo (`DELEGATED_SESSION_ID`).
+   Se o Google bloquear o login embutido, use **Navegador** ou **Colar cookies**
+   (botões abaixo do WebView no Windows) e importe a sessão.
 
 Linux:
 
@@ -126,8 +146,8 @@ Music e envia `onBehalfOfUser`/`X-Goog-PageId` nas chamadas. Assim, curtidas,
 playlists e biblioteca ficam no canal correto.
 
 - Capture os cookies com o **canal da conta de marca já selecionado** no site.
-  No Android, troque o canal no avatar dentro do WebView antes de tocar em
-  "Concluir".
+  No Android e no Windows, troque o canal no avatar dentro do WebView antes de
+  tocar em "Concluir" — não é preciso copiar cookie nem digitar o ID.
 - Se a detecção automática falhar, use **Conta → Conta de marca** e informe o ID
   numérico. Ele aparece em `myaccount.google.com/brandaccounts`, na URL
   `myaccount.google.com/b/ID`.
@@ -143,7 +163,8 @@ Limitações do login:
 
 ## WebView no Linux
 
-O app só embute WebView no Android. No Linux o login usa navegador externo e
+O app embute WebView no **Android** (system WebView) e no **Windows** (WebView2,
+via `flutter_inappwebview_windows`). No Linux o login usa navegador externo e
 importação de cookies, então o plugin real (que exige WPE WebKit) não é
 necessário. Por isso `pubspec.yaml` aponta `flutter_inappwebview_linux` para o
 stub em `third_party/flutter_inappwebview_linux/`.
