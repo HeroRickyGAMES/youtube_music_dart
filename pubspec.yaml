@@ -2,7 +2,7 @@ name: youtube_music_player_dart
 description: "YouTube Music player for Linux and Android with automatic ad/intro skip and Google account support."
 publish_to: 'none'
 
-version: 1.1.0+2
+version: 1.1.1+3
 
 environment:
   sdk: ^3.13.7

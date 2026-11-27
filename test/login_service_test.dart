@@ -57,6 +57,12 @@ void main() {
     expect(LoginService.supportsEmbeddedBrowser('macos'), isFalse);
   });
 
+  test('WebView2 runtime check is a no-op off Windows', () async {
+    // The test host is Linux: no registry access is attempted.
+    expect(await LoginService().isWebView2Available(), isTrue);
+    expect(LoginService.webView2DownloadUrl, contains('LinkId=2124703'));
+  });
+
   test('embedded browser uses a desktop UA on Windows', () {
     final windows = LoginService.embeddedBrowserUserAgent(windows: true);
     final android = LoginService.embeddedBrowserUserAgent(windows: false);

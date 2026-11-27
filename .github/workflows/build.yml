@@ -154,12 +154,22 @@ jobs:
       - name: Build release
         run: flutter build windows --release
 
-      - name: Empacotar (inclui libmpv-2.dll)
+      - name: Empacotar (inclui libmpv-2.dll e instalador WebView2)
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $out = 'build/windows/x64/runner/Release'
           Copy-Item "$env:MPV_PREFIX/libmpv-2.dll" -Destination $out -Force
+
+          # Sistemas Windows "debloteados" podem nao ter Edge/WebView2. O
+          # bootstrapper oficial (~2 MB) baixa o runtime sem precisar do Edge e
+          # fica ao lado do executavel; o app o oferece na tela de Conta.
+          $installer = Join-Path $out 'MicrosoftEdgeWebview2Setup.exe'
+          curl.exe -fL --retry 5 --retry-delay 5 --retry-all-errors `
+            -o $installer 'https://go.microsoft.com/fwlink/p/?LinkId=2124703'
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao baixar o bootstrapper do WebView2' }
+          Get-Item $installer | Select-Object Name, Length
+
           New-Item -ItemType Directory -Path artifacts -Force | Out-Null
           Compress-Archive -Path "$out/*" -DestinationPath "artifacts/${env:APP_NAME}_windows_x64.zip" -Force
           Get-ChildItem artifacts | Select-Object Name, Length

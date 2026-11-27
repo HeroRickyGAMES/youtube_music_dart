@@ -301,10 +301,9 @@ class LoginService {
   bool get canImportFromBrowser =>
       !kIsWeb && (Platform.isLinux || Platform.isMacOS);
 
-  /// Opens music.youtube.com in the default browser.
-  Future<bool> openLoginInBrowser() async {
+  /// Opens a URL in the system's default browser.
+  Future<bool> _openUrl(String url) async {
     if (kIsWeb) return false;
-    const url = 'https://music.youtube.com/';
     try {
       late final ProcessResult result;
       if (Platform.isWindows) {
@@ -319,6 +318,84 @@ class LoginService {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Opens music.youtube.com in the default browser.
+  Future<bool> openLoginInBrowser() =>
+      _openUrl('https://music.youtube.com/');
+
+  /// Official WebView2 Runtime bootstrapper (does not require Edge).
+  static const webView2DownloadUrl =
+      'https://go.microsoft.com/fwlink/p/?LinkId=2124703';
+
+  /// Opens the official WebView2 download page in the default browser.
+  Future<bool> openWebView2DownloadUrl() => _openUrl(webView2DownloadUrl);
+
+  static const _webView2ClientId =
+      '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
+
+  /// True when the WebView2 Runtime is installed.
+  ///
+  /// Debloated Windows builds often remove Edge and the runtime together. We
+  /// check the EdgeUpdate registry keys and the installation folder, so a
+  /// missing runtime can be handled in the UI instead of crashing the WebView.
+  Future<bool> isWebView2Available() async {
+    if (!Platform.isWindows) return true;
+    for (final root in const [
+      r'HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients',
+      r'HKLM\SOFTWARE\Microsoft\EdgeUpdate\Clients',
+      r'HKCU\SOFTWARE\Microsoft\EdgeUpdate\Clients',
+    ]) {
+      try {
+        final result = await Process.run(
+          'reg',
+          ['query', '$root\\${LoginService._webView2ClientId}', '/v', 'pv'],
+        );
+        if (result.exitCode == 0 &&
+            RegExp(r'\d+\.\d+\.\d+\.\d+').hasMatch(result.stdout.toString())) {
+          return true;
+        }
+      } catch (_) {
+        // Keep checking the other locations.
+      }
+    }
+    final programFiles = Platform.environment['ProgramFiles(x86)'] ??
+        Platform.environment['ProgramFiles'];
+    if (programFiles != null) {
+      try {
+        final dir = Directory('$programFiles\\Microsoft\\EdgeWebView\\Application');
+        if (await dir.exists() && await dir.list().length > 0) return true;
+      } catch (_) {}
+    }
+    return false;
+  }
+
+  /// Runs the WebView2 bootstrapper bundled in the release zip.
+  ///
+  /// Falls back to opening the official download page when the file is not
+  /// present (e.g. during development). Returns true when the installer or the
+  /// download page was started.
+  Future<bool> installWebView2() async {
+    if (!Platform.isWindows) return false;
+    final executable = Platform.resolvedExecutable;
+    final separator = Platform.pathSeparator;
+    final dir = executable.substring(0, executable.lastIndexOf(separator));
+    final installer = File(
+      '$dir${Platform.pathSeparator}MicrosoftEdgeWebview2Setup.exe',
+    );
+    if (await installer.exists()) {
+      try {
+        final result = await Process.run('powershell', [
+          '-NoProfile',
+          '-Command',
+          'Start-Process -FilePath "${installer.path}" -Verb RunAs -Wait',
+        ]);
+        return result.exitCode == 0;
+      } catch (_) {
+        return false;
+      }
+    }
+    return _openUrl(webView2DownloadUrl);
   }
 
   /// User-Agent for the embedded login browser.
@@ -338,8 +415,9 @@ class LoginService {
 
   /// Platforms where the embedded Google login browser is available.
   ///
-  /// Windows uses the WebView2 runtime shipped with Edge; Android uses the
-  /// system WebView. On Linux/macOS the app falls back to cookie import.
+  /// Windows uses the WebView2 Runtime (installable without Edge through the
+  /// bundled bootstrapper); Android uses the system WebView. On Linux/macOS the
+  /// app falls back to cookie import.
   static bool supportsEmbeddedBrowser(String operatingSystem) =>
       operatingSystem == 'android' || operatingSystem == 'windows';
 

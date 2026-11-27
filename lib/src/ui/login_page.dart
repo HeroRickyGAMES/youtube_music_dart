@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:provider/provider.dart';
@@ -23,12 +24,49 @@ class _LoginPageState extends State<LoginPage> {
   bool _busy = false;
   String? _message;
 
-  bool get _showWebView => _loginService.canUseEmbeddedBrowser;
+  /// null = ainda verificando; true = runtime presente; false = falta instalar.
+  bool? _webView2Available;
+
+  bool get _isWindows => !kIsWeb && Platform.isWindows;
+
+  bool get _showWebView =>
+      _loginService.canUseEmbeddedBrowser &&
+      (!_isWindows || _webView2Available == true);
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isWindows) _checkWebView2();
+  }
 
   @override
   void dispose() {
     _pasteController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkWebView2() async {
+    if (!_isWindows) return;
+    setState(() => _webView2Available = null);
+    final available = await _loginService.isWebView2Available();
+    if (!mounted) return;
+    setState(() => _webView2Available = available);
+  }
+
+  Future<void> _installWebView2() async {
+    setState(() {
+      _busy = true;
+      _message = 'Abrindo o instalador do WebView2…';
+    });
+    final started = await _loginService.installWebView2();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _message = started
+          ? 'Conclua a instalação do WebView2 e toque em "Verificar novamente".'
+          : 'Não consegui abrir o instalador. Use o botão "Baixar WebView2" '
+              'ou os métodos de cookie abaixo.';
+    });
   }
 
   Future<void> _finishWebViewLogin() async {
@@ -304,7 +342,14 @@ class _LoginPageState extends State<LoginPage> {
                 onTap: _busy ? null : _setBrandAccount,
               ),
             ),
-          if (_showWebView)
+          if (_isWindows && _webView2Available == null)
+            const Expanded(
+              child: Center(
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: AppColors.accent),
+              ),
+            )
+          else if (_showWebView)
             Container(
               width: double.infinity,
               color: AppColors.surfaceHigh,
@@ -314,6 +359,78 @@ class _LoginPageState extends State<LoginPage> {
                 'canal pelo avatar dentro do YouTube Music antes de tocar em '
                 '"Concluir".',
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+            )
+          else if (_isWindows)
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceHigh,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Este Windows não tem o WebView2 Runtime (comum em '
+                      'sistemas sem Edge). Instale o runtime para usar o '
+                      'navegador interno, ou use o navegador/cookies abaixo.',
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                          height: 1.4),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _busy ? null : _installWebView2,
+                          icon: const Icon(Icons.download, size: 16),
+                          label: const Text('Instalar WebView2'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _busy ? null : _checkWebView2,
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('Verificar'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: _busy
+                          ? null
+                          : () => _loginService
+                              .openWebView2DownloadUrl(),
+                      child: const Text('Baixar instalador manualmente'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _OptionTile(
+                    icon: Icons.open_in_new,
+                    title: 'Abrir music.youtube.com no navegador',
+                    subtitle:
+                        'Faça login e depois use "Colar cookies".',
+                    onTap: _busy
+                        ? null
+                        : () => _loginService.openLoginInBrowser(),
+                  ),
+                  _OptionTile(
+                    icon: Icons.content_paste,
+                    title: 'Colar cookies',
+                    subtitle:
+                        'Funciona com qualquer navegador que exporte cookies.',
+                    onTap: _busy ? null : _openPasteDialog,
+                  ),
+                ],
               ),
             ),
           if (_showWebView)
@@ -347,7 +464,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
           // No Windows o WebView2 pode faltar ou o Google pode bloquear o
           // login embutido: mantemos as mesmas alternativas do Linux à mão.
-          if (_showWebView && Platform.isWindows)
+          if (_showWebView && _isWindows)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Row(
@@ -372,7 +489,7 @@ class _LoginPageState extends State<LoginPage> {
                 ],
               ),
             )
-          else if (!_showWebView)
+          else if (!_showWebView && !_isWindows)
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(20),

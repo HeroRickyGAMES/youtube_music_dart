@@ -56,9 +56,11 @@ sem dependência extra.
 - Windows:
   - Visual Studio com C++ (o mesmo exigido pelo Flutter).
   - **WebView2 Runtime** para o navegador interno de login. Já vem no Windows
-    11 e no Edge atualizado; em Windows 10 sem o runtime, instale o
-    [WebView2 Evergreen Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
-    Sem ele, use "Colar cookies" na tela de Conta.
+    11 e no Edge. Em Windows **debloteado sem Edge**, o app detecta a ausência
+    e oferece **Instalar WebView2**: o ZIP de release já traz o bootstrapper
+    oficial (`MicrosoftEdgeWebview2Setup.exe`, ~2 MB) ao lado do `.exe`, que
+    instala o runtime **sem precisar do Edge**. Se preferir, use "Colar cookies"
+    ou "Abrir music.youtube.com no navegador".
 
 ## Como rodar
 
@@ -87,7 +89,8 @@ manualmente (`workflow_dispatch`). Commits comuns não rodam pipeline.
 - **Android**: usa JDK 17 e gera `youtube_music_player_android.apk`.
 - **Windows**: baixa automaticamente o pacote `mpv-dev` prebuilt (shinchiro),
   define `MPV_PREFIX` e gera `youtube_music_player_windows_x64.zip` com a
-  `libmpv-2.dll` incluída. Não precisa instalar nada manualmente.
+  `libmpv-2.dll` e o bootstrapper do WebView2 incluídos. Não precisa instalar
+  nada manualmente.
 
 Os três arquivos são anexados como *artifacts* do run. Ao criar uma tag `v*`
 (ex.: `v1.0.0`), a pipeline também publica uma GitHub Release com os mesmos
@@ -128,6 +131,9 @@ Android e Windows (navegador interno — igual ao app Android):
 4. O app detecta automaticamente o canal ativo (`DELEGATED_SESSION_ID`).
    Se o Google bloquear o login embutido, use **Navegador** ou **Colar cookies**
    (botões abaixo do WebView no Windows) e importe a sessão.
+5. Em Windows sem Edge/WebView2, a tela mostra **Instalar WebView2**. O ZIP
+   traz o bootstrapper; após instalar, toque em **Verificar**. Mesmo sem
+   instalar, os métodos de cookie continuam funcionando.
 
 Linux:
 
